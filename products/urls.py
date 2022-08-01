@@ -1,10 +1,12 @@
 from django.urls import path
 from .views import (
                     RetrieveProductView,
-                    CreateCheckoutSession
+                    CreateCheckoutSession,
+                    my_webhook_view
                     )
 
 urlpatterns = [
     path('product/<int:pid>/', RetrieveProductView.as_view(), name="retrieve-single-product"),
-    path('checkout', CreateCheckoutSession.as_view(), name="checkout")
+    path('checkout', CreateCheckoutSession.as_view(), name="checkout"),
+    # path('webhook', my_webhook_view, name="payment-confirmation")
 ]

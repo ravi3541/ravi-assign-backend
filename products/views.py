@@ -1,11 +1,17 @@
 import stripe
+from django.http import HttpResponse
+from django.views.decorators.csrf import csrf_exempt
+from rest_framework.decorators import renderer_classes, api_view
+from rest_framework.renderers import JSONRenderer
+
 from .models import Product
 from django.conf import settings
 from rest_framework import status
 from django.shortcuts import redirect
 from .serializers import (
                         ProductSerializer,
-                        CheckoutSerializer
+                        CheckoutSerializer,
+                        OrderSerializer
                         )
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
@@ -16,6 +22,7 @@ from rest_framework.generics import (
                                     )
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
+endpoint_secret = settings.ENDPOINT_SECRET_KEY
 
 # Create your views here.
 
@@ -82,9 +89,14 @@ class CreateCheckoutSession(GenericAPIView):
                             'quantity': serializer.data.get('qty')
                         }
                     ],
+                    metadata={
+                        "product_id": serializer.data.get("product_id"),
+                        "qty": serializer.data.get("qty"),
+                        "unit_price": int(product.price)*100,
+                    },
                     mode='payment',
                     success_url='https://www.google.com/',
-                    cancel_url='https://www.youtube.com/',
+                    cancel_url='http://localhost:4200/shopping/product/1',
                 )
                 return redirect(checkout_session.url)
         except Exception as e:
@@ -92,6 +104,81 @@ class CreateCheckoutSession(GenericAPIView):
                 'error': str(e)
             }
             return Response(response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@csrf_exempt
+@api_view(['POST'])
+def my_webhook_view(request):
+    payload = request.body
+    sig_header = request.META['HTTP_STRIPE_SIGNATURE']
+    event = None
+
+    try:
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, endpoint_secret
+        )
+    except ValueError as e:
+        # Invalid payload
+        return HttpResponse(status=400)
+    except stripe.error.SignatureVerificationError as e:
+        # Invalid signature
+        return HttpResponse(status=400)
+
+    # Handle the checkout.session.completed event
+    if event['type'] == 'checkout.session.completed':
+        session = event['data']['object']
+
+        prod_id = session['metadata']['product_id']
+        qty = session['metadata']['qty']
+        unit_price = session['metadata']['unit_price']
+        payment_status = "completed"
+
+        customer_email = session['customer_details']['email']
+        customer_name = session['customer_details']['name']
+        customer_country = session['customer_details']['address']['country']
+        customer_state = session['customer_details']['address']['state']
+        customer_city = session['customer_details']['address']['city']
+        customer_addr_line1 = session['customer_details']['address']['line1']
+        customer_addr_line2 = session['customer_details']['address']['line2']
+        customer_postal_code = session['customer_details']['address']['postal_code']
+
+        order = {
+            'email': customer_email,
+            'name': customer_name,
+            'country': customer_country,
+            'state': customer_state,
+            'city': customer_city,
+            'addr_line1': customer_addr_line1,
+            'addr_line2': customer_addr_line2,
+            'postal_code': customer_postal_code,
+            'product_id': prod_id,
+            'qty': qty,
+            'unit_price': unit_price,
+            'payment_status': payment_status
+        }
+
+        serializer = OrderSerializer(data=order)
+        if serializer.is_valid():
+            serializer.save()
+            print("data saved")
+        else:
+            print("serializer errors = ", serializer.errors)
+            response = {
+                'errors': serializer.errors
+            }
+            return Response(response, status=status.HTTP_400_BAD_REQUEST)
+
+        # print(customer_email, " ", customer_name, " ", customer_city, " ", customer_country, " ", customer_addr_line1, " ", customer_addr_line2, " ", customer_postal_code, " ", customer_state)
+        #
+        # print("Product ID = ", prod_id)
+        # print("qty = ", qty)
+        # print(session)
+        # Fulfill the purchase...
+
+
+
+    # Passed signature verification
+    return HttpResponse(status=200)
 
 
 

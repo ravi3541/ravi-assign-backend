@@ -137,7 +137,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Stripe Secret Keys
 STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
-
+ENDPOINT_SECRET_KEY = os.getenv('ENDPOINT_SECRET_KEY')
 
 # Django cors headers configuration
 
