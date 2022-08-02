@@ -1,8 +1,7 @@
 import stripe
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
-from rest_framework.decorators import renderer_classes, api_view
-from rest_framework.renderers import JSONRenderer
+from rest_framework.decorators import api_view
 
 from .models import Product
 from django.conf import settings
@@ -16,7 +15,6 @@ from .serializers import (
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from rest_framework.generics import (
-                                    CreateAPIView,
                                     RetrieveAPIView,
                                     GenericAPIView,
                                     )
@@ -38,24 +36,20 @@ class RetrieveProductView(RetrieveAPIView):
     def get(self, request, *args, **kwargs):
         try:
             product_id = kwargs['pid']
-            print("PRODUCT ID = ", product_id )
             product = Product.objects.get(id=product_id)
             serializer = self.serializer_class(product)
             response = {
                 'data': serializer.data
             }
-            print(response)
             return Response(response, status=status.HTTP_200_OK)
 
         except Product.DoesNotExist as p:
-            print("Product does not exist")
             response = {
                 'error': "Product Does Not Exist"
             }
             return Response(response, status=status.HTTP_404_NOT_FOUND)
 
         except Exception as e:
-            print("Exception ", e)
             response = {
                 'error': "Product Does Not Exist"
             }
@@ -68,13 +62,10 @@ class CreateCheckoutSession(GenericAPIView):
     permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
-        print("checkout called", request.data.get('product_id'))
         serializer = self.serializer_class(data=request.data)
         try:
             if serializer.is_valid():
                 product = Product.objects.get(id=serializer.data.get('product_id'))
-                print("pid  = ", serializer.data.get("product_id"))
-                print("qty  = ", serializer.data.get("qty"))
 
                 checkout_session = stripe.checkout.Session.create(
                     line_items=[
@@ -95,7 +86,7 @@ class CreateCheckoutSession(GenericAPIView):
                         "unit_price": int(product.price)*100,
                     },
                     mode='payment',
-                    success_url='https://www.google.com/',
+                    success_url='http://localhost:4200/shopping/product/1?success=true',
                     cancel_url='http://localhost:4200/shopping/product/1',
                 )
                 return redirect(checkout_session.url)
@@ -160,22 +151,11 @@ def my_webhook_view(request):
         serializer = OrderSerializer(data=order)
         if serializer.is_valid():
             serializer.save()
-            print("data saved")
         else:
-            print("serializer errors = ", serializer.errors)
             response = {
                 'errors': serializer.errors
             }
             return Response(response, status=status.HTTP_400_BAD_REQUEST)
-
-        # print(customer_email, " ", customer_name, " ", customer_city, " ", customer_country, " ", customer_addr_line1, " ", customer_addr_line2, " ", customer_postal_code, " ", customer_state)
-        #
-        # print("Product ID = ", prod_id)
-        # print("qty = ", qty)
-        # print(session)
-        # Fulfill the purchase...
-
-
 
     # Passed signature verification
     return HttpResponse(status=200)
