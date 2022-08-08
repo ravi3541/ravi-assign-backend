@@ -134,24 +134,26 @@ def my_webhook_view(request):
         customer_postal_code = session['customer_details']['address']['postal_code']
 
         order = {
-            'email': customer_email,
-            'name': customer_name,
-            'country': customer_country,
-            'state': customer_state,
-            'city': customer_city,
-            'addr_line1': customer_addr_line1,
-            'addr_line2': customer_addr_line2,
-            'postal_code': customer_postal_code,
+            'customer_email': customer_email,
+            'customer_name': customer_name,
+            'customer_country': customer_country,
+            'customer_state': customer_state,
+            'customer_city': customer_city,
+            'customer_addr_line1': customer_addr_line1,
+            'customer_addr_line2': customer_addr_line2,
+            'customer_postal_code': customer_postal_code,
             'product_id': prod_id,
             'qty': qty,
-            'unit_price': unit_price,
+            'unit_price': (int(unit_price)/100),
             'payment_status': payment_status
         }
 
         serializer = OrderSerializer(data=order)
         if serializer.is_valid():
             serializer.save()
+
         else:
+            print(serializer.errors)
             response = {
                 'errors': serializer.errors
             }
